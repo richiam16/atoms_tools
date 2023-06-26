@@ -1,0 +1,1 @@
+In this repository are some tools and python scripts that I used for the modelling and prediction of the ionization energy and atomic energy of some set of atoms. This repository is currently in construction
