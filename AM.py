@@ -1,30 +1,21 @@
 import pandas as pd
-import glob
-import os
 import matplotlib.pyplot as plt
 import re
 
-arch = []
-for filename in glob.glob(os.path.join("C:\\Users\\richi\\Desktop\\QTAIM\\NPA\\nuevos", "*.sum")):
-    arch.append(filename)
-file = open("simbolos_atomos.txt", "r")
-lineas = file.readlines()
-file_2 = open("EI_Atoms.txt", "r")
-lines = file_2.readlines()
-file_3 = open("AE_Atoms.txt", "r")
-lines_ae = file_3.readlines()
-
-
 class Am_Mol:
+    """Class used to define an atom, result of a electronic structure calculation""" 
+    
     def __init__(self, sum):
+        """ The object is initialized just with the path of any .sum file"""
         self.sum = sum
 
     def _nom(self):
-        lisnom = self.sum.split("\\")
+        """Method to get information from the file name of the sum, the file is assumed to have the format: atomOxstate_valence.sum"""
+        lisnom = self.sum.split("/")
         lisnom = lisnom[len(lisnom) - 1].split(".")
-        self.nom = lisnom[0]
+        self.nom = lisnom[0] # Name of the file
         temp = self.nom.split("_")
-        self.tipo = temp[1]
+        self.tipo = temp[1] # type of calculation, eg alpha, beta, total
         sep = re.split(r'[\+\-]', temp[0])
         if len(sep) <= 1:
             # self.ox = 0
@@ -35,6 +26,7 @@ class Am_Mol:
             self.atm = sep[0]
 
     def _rdsum(self):
+        """Method to read the information from the .sum file, it creates an individual dataframe called completo with IQA informaiton"""
         print("reading file:" + self.nom)
         file = open(self.sum, "r")
         lines = file.readlines()
@@ -53,6 +45,7 @@ class Am_Mol:
         self.completo = self.completo.apply(pd.to_numeric, errors="ignore")
 
     def _search_EA(self, lines):
+        """Method to include the experimental informaiton of the Atominc Ionization based on the EI_Atoms.txt file"""
         if self.tipo == "ab":
             for i in range(3, len(lines) - 1):
                 comp = lines[i].split("|")
@@ -67,6 +60,7 @@ class Am_Mol:
                     break
 
     def _search_AE(self, lines):
+        """Method to include the experimental informaiton of ELectron Affinity based on the EI_Atoms.txt file"""
         if self.tipo == "ab":
             for i in range(2, len(lines) - 1):
                 comp = lines[i].split("|")
@@ -79,6 +73,7 @@ class Am_Mol:
                     break
 
     def _az(self, lineas):
+        """Method to get the atomic number of each atom based on the simbolos_atoms.txt file"""
         for linea in lineas:
             temp = linea.split()
             if temp[2] == self.atm:
@@ -86,8 +81,16 @@ class Am_Mol:
                 self.atm = temp[2]
                 self.z = temp[1]
 
+    def _main(self, lineas, lines, lines_ae):
+        self._nom()
+        self._az(lineas)
+        self._rdsum()
+        self._search_EA(lines)
+        self._search_AE(lines_ae)
+
     @staticmethod
     def _search(lines, phrase):
+        """ A simple method to find a particular text phrase in a file"""
         for i in range(0, len(lines)):
             a = lines[i].find(phrase)
             if a >= 0:
@@ -97,47 +100,14 @@ class Am_Mol:
 
     @staticmethod
     def _crdf(lines, lim):
+        """A method to treat simbolos_atoms.txt file"""
         nom_list = lines[lim].split()[2:]
         prop_list = lines[lim + 2].split()[1:]
         df = pd.DataFrame(prop_list, index=nom_list).T
         return df
 
-
-mol = [Am_Mol(dic) for dic in arch]
-for i in range(0, len(mol)):
-    mol[i]._nom()
-    mol[i]._az(lineas)
-    mol[i]._rdsum()
-    mol[i]._search_EA(lines)
-    mol[i]._search_AE(lines_ae)
-    print("file" + " " + str(i + 1) + " of" + " " + str(len(mol)))
-alpha = pd.DataFrame()
-beta = pd.DataFrame()
-total = pd.DataFrame()
-print("creating alpha,beta and total dataframes")
-for i in range(0, len(mol)):
-    if mol[i].tipo == "a":
-        alpha = alpha.append(mol[i].completo, ignore_index=True)
-    elif mol[i].tipo == "b":
-        beta = beta.append(mol[i].completo, ignore_index=True)
-    elif mol[i].tipo == "ab":
-        total = total.append(mol[i].completo, ignore_index=True)
-alpha_beta = alpha.join(beta.set_index(["Atom", "Ox", "Z"]), on=[
-                        "Atom", "Ox", "Z"], lsuffix="_a", rsuffix="_b")
-print("creating master dataframe")
-master = alpha_beta.join(total.set_index(["Atom", "Ox", "Z"]), on=[
-    "Atom", "Ox", "Z"], rsuffix="_t")
-master = master.drop(["Type", "Type_a", "Type_b"], axis=1)
-a = master["Z"] - master["Ox"]
-master.insert(3, "#e", a)
-master["Vee_ab(A,A)"] = master["E_IQA_Intra(A)"] - \
-    (master["E_IQA_Intra(A)_a"] + master["E_IQA_Intra(A)_b"])
-# master["(E_IQA_Intra(A)_a+E_IQA_Intra(A)_b)/Vee_ab(A,A)"] = (master["E_IQA_Intra(A)_a"] +
-#                                                            master["E_IQA_Intra(A)_b"]) / master["Vee_ab(A,A)"]
-master = master.sort_values(by=["Z", "Ox"], ascending=True)
-
-
 def iden_op(phrase, name="df"):
+    """A method to create a column that is a result of an operation from other columns of a dataframe"""
     ope = re.split(r'[\+\-*/]', phrase)
     simb = re.findall(r'[\+\-*/]', phrase)
     new_c = ""
@@ -153,6 +123,7 @@ def iden_op(phrase, name="df"):
 
 
 def graph_a(df, ax_x, ax_y, title="", column="Atom", simb_log="!=", A="A"):
+    """ A method to plot columns from dataframe"""
     plt.rcParams.update({'font.size': 15})
     ax = plt.gca()
     df[str(ax_x)] = eval(iden_op(ax_x, "df"))
