@@ -10,6 +10,7 @@ from sklearn.metrics import mean_absolute_error, max_error
 
 
 def concate(path, model):
+    """Concates the results from a nerual network training from multiple files into a dataframe"""
     ini = str(path) + "/" + str(model) + "_1" + ".csv"
     df_ = pd.read_csv(ini)
     for filename in glob.glob(str(path) + "/" + str(model) + "_" + "*.csv"):
@@ -21,6 +22,7 @@ def concate(path, model):
 
 
 def operation_maker(des, total):
+    """Creates a string representing a simple operations between dataframe coloumns"""
     des_prom = [de + "_prom" for de in des]
     num_ = [str(i) for i in range(2, total + 1)] + [""]
     des_num = [[de + num for num in num_] for de in des]
@@ -44,6 +46,7 @@ def iden_op(phrase, name="df"):
 
 
 def smooth(points, factor=0.9):
+    """smooths a function of any kind by a certain factor"""
     smoothed_points = []
     for point in points:
         if smoothed_points:
@@ -63,18 +66,20 @@ def prom(path, model, des=["loss", "mae", "val_mae", "val_loss"], total=10):
 
 
 def comb_des(df, n_des):
+    """creates a numpy array from the combinations of the coloumns of a dataframe"""
     comb = np.array(list(it.combinations(df.columns, n_des)))
     return comb
 
 
-def corr(df, y_name, n_des, r_2_ref, r_cv_ref=-10, cv_n=2):
+def corr(df, y_name, n_des, estimator = LinearRegression(),r_2_ref=0, r_cv_ref=-10, cv_n=2):
+    """Creates Linear Regression for a combination of data frame coloumns""" 
     y = df[y_name].to_numpy()
     df = df.drop(columns=y_name)
     df = df.select_dtypes(include=np.number)
     comb = comb_des(df, n_des)
     for column in comb:
         X = df[column].to_numpy()
-        model = LinearRegression().fit(X, y)
+        model = estimator.fit(X, y)
         y_pre, r_2, scores = model.predict(X), model.score(
             X, y), cross_val_score(model, X, y, cv=cv_n)
         mae, max_ = mean_absolute_error(y, y_pre), max_error(y, y_pre)
